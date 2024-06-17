@@ -1,0 +1,134 @@
+import numpy as np
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+import sklearn
+from sklearn.preprocessing import LabelEncoder
+from sklearn.impute import SimpleImputer
+
+app_data = pd.read_csv('googleplaystore.csv')
+def missing_values(test):
+    total = test.isnull().sum().sort_values(ascending=False)
+    percent_1 = test.isnull().sum() / test.isnull().count() * 100
+    percent_2 = (round(percent_1, 1)).sort_values(ascending=False)
+    missing_data = pd.concat([total, percent_2], axis=1, keys=['Total', '%'])
+    
+    return missing_data.head((missing_data['Total'] >= 0).sum())
+missing_values(app_data)
+app_data.dropna(inplace = True)
+missing_values(app_data)
+app_data.columns
+not_useful = ['Last Updated', 'Current Ver', 'Android Ver']
+app_data = app_data.drop(not_useful, axis = 1)
+app_data.head()
+app_data.info()
+app_data = app_data.astype({'Reviews': 'int32'})
+app_data['Installs'].unique()
+app_data['Installs'] = app_data['Installs'].replace('[\,]', '', regex = True).replace('[\+]', '', regex = True).astype(int)
+app_data['Installs'].unique()
+paid_types = app_data["Type"].unique()
+labelencoder = LabelEncoder()
+app_data['Type'] = labelencoder.fit_transform(app_data['Type'])
+before = app_data["Price"].nunique()
+
+app_data["Price"] = app_data["Price"].replace('[\$,]', '', regex=True).astype(float)
+
+after = app_data["Price"].nunique()
+
+f"Unique values before: {before}, unique values after: {after}"
+app_data["Content Rating"].unique()
+def clean_size(size):
+    if size[-1:] == "M":
+        clean_size = float(size[:-1])
+    elif size[-1:] == "k":
+        clean_size = float(size[:-1]) / 1000
+    else:
+        clean_size = None
+    return clean_size
+
+app_data["Size"] = app_data["Size"].map(clean_size)
+app_data["Size"].unique()[0:30]
+imp_size = SimpleImputer(missing_values= np.nan ,strategy = "mean")
+imp_size.fit(pd.DataFrame(app_data["Size"]))
+app_data["Size"] = (imp_size.transform(pd.DataFrame(app_data["Size"])))
+app_data["Size"].unique()[0:30]
+app_data.dtypes
+app_data["Category"].unique()
+app_data[(app_data["Category"] == "FAMILY")]["Category"].count()
+n = app_data["Category"].unique()
+c = []
+for i in n:
+    c.append([app_data[(app_data["Category"] == i)]["Category"].count(), i])
+c.sort()
+
+r = range(33)
+
+for i,j in zip(c, r):
+    app_data["Category"] = (app_data["Category"].replace(i[1], j, regex=True))
+
+app_data["Category"] = app_data["Category"].astype("int")
+app_data["Genres"].unique()[0:30]
+app_data["Genre2"].unique()
+app_data = app_data.drop(["Genre1", "Genre2"], axis=1)
+predict = "Rating"
+
+X = np.array(app_data.drop(["App", "Price", predict], axis = 1))
+X_without_rev_inst = np.array(app_data.drop(["App", "Price", "Reviews", "Installs", predict], axis = 1))
+y = np.array(app_data[predict])
+# set up the train and test variables and choose to use %10 of the data for testing
+x_train_without, x_test_without, y_train, y_test = sklearn.model_selection.train_test_split(X_without_rev_inst, y, test_size = 0.90)
+x_train, x_test, y_train, y_test = sklearn.model_selection.train_test_split(X, y, test_size = 0.90)
+from sklearn.model_selection import train_test_split
+from sklearn import linear_model 
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_absolute_error, mean_squared_error
+
+
+# A function for mean absolute precentage error
+def mean_absolute_percentage_error(Y_actual,Y_Predicted):
+    mape = np.mean(np.abs((Y_actual - Y_Predicted)/Y_actual))*100
+    return mape
+
+
+def models(X, y):
+    X_train, X_val, Y_train, Y_val = train_test_split(X, 
+                                                      y, 
+                                                      random_state = 0)
+    #Random Forest
+    random_forest = RandomForestRegressor(n_estimators=100)
+    random_forest.fit(X_train, Y_train)
+    Y_pred = random_forest.predict(X_val)
+    acc_random_forest = mean_absolute_percentage_error(Y_val, Y_pred)
+    
+    #Regression
+    regr = linear_model.LinearRegression()
+
+    regr.fit(X_train, Y_train)
+
+    Y_pred = regr.predict(X_val)
+    acc_linear_reg = mean_absolute_percentage_error(Y_val, Y_pred)
+    
+    return f"Random Forest Error: {acc_random_forest}%, Linear Regression Error: {acc_linear_reg}%"
+model_without_rev_installs = linear_model.LinearRegression()
+model = linear_model.LinearRegression()
+
+model_without_rev_installs.fit(x_train_without, y_train)
+model.fit(x_train, y_train)
+
+result_without = model_without_rev_installs.predict(x_test_without)
+result = model.predict(x_test)
+error_without = mean_absolute_percentage_error(y_test, result_without)
+error = mean_absolute_percentage_error(y_test, result)
+f"Error when using reviews and installs: {error}, Error without using reviews and installs: {error_without}"
+plot = sns.regplot(x=result_without, y=y_test)
+plot.figure.set_size_inches(18.5, 10.5)
+plot = sns.regplot(x=result_without, y=y_test)
+plot.figure.set_size_inches(18.5, 10.5)
+
+plot = sns.regplot(x=result, y=y_test)
+plot.figure.set_size_inches(18.5, 10.5)
+e_with = mean_absolute_percentage_error(y_test, result)
+e_without = mean_absolute_percentage_error(y_test, result_without)
+f"Error when using reviews and installs: {e_with}%, Error without using reviews and installs: {e_without}%"
+
+c
